@@ -1,65 +1,169 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import Tesseract from "tesseract.js";
 
 export default function Home() {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [date, setDate] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [requirements, setRequirements] = useState<string[]>([]);
+  const [summary, setSummary] = useState("");
+  const [link, setLink] = useState(""); 
+
+  const handleUpload = async (event: any) => {
+    
+    const file = event.target.files[0];
+    if (!file) return;
+    setText("");
+    setEmail("");
+    setDate("");
+    setRequirements([]);
+    setSummary("");
+    setFileName(file.name);
+
+    // Allow only images
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload an image file (JPG or PNG). PDF support coming soon.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const result = await Tesseract.recognize(file, "eng");
+      const extractedText = result.data.text;
+
+      setText(extractedText);
+
+      // Detect email
+      const emailMatch = extractedText.match(
+        /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+      );
+
+      // Detect closing date
+      const dateMatch = extractedText.match(
+        /\d{1,2}\s(March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar)/i
+      );
+
+      if (emailMatch) setEmail(emailMatch[0]);
+      if (dateMatch) setDate(dateMatch[0]);
+
+      // Detect requirements
+      const lines = extractedText.split("\n");
+
+      const detectedRequirements = lines.filter((line) =>
+        line.toLowerCase().includes("must") ||
+        line.toLowerCase().includes("require") ||
+        line.toLowerCase().includes("degree") ||
+        line.toLowerCase().includes("experience") ||
+        line.toLowerCase().includes("age")
+      );
+
+      setRequirements(detectedRequirements);
+      const jobSummary = `
+Qualification: ${detectedRequirements.find(r => r.toLowerCase().includes("degree")) || "Not detected"}
+
+Age Requirement: ${detectedRequirements.find(r => r.toLowerCase().includes("age")) || "Not detected"}
+
+Closing Date: ${dateMatch ? dateMatch[0] : "Not detected"}
+
+Application Email: ${emailMatch ? emailMatch[0] : "Not detected"}
+`;
+const linkMatch = extractedText.match(
+  /(https?:\/\/[^\s]+)/i
+);
+
+if (linkMatch) setLink(linkMatch[0]);
+{link && (
+  <p className="mt-2 text-blue-400">
+    🔗 Application Link: 
+    <a href={link} target="_blank" className="underline ml-1">
+      {link}
+    </a>
+  </p>
+)}
+
+setSummary(jobSummary);
+
+    } catch (error) {
+      console.error("OCR Error:", error);
+      alert("Could not read the image. Please try another image.");
+    }
+
+    setLoading(false);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
-}
+  <main className="p-10">
+    <h1 className="text-3xl font-bold mb-6">
+      Job Advert Analyzer MVP
+    </h1>
+
+    <input type="file" accept="image/*" onChange={handleUpload} />
+
+    {fileName && (
+      <p className="mt-2 text-sm text-gray-300">
+        Chosen file: {fileName}
+      </p>
+    )}
+
+    {loading && (
+      <p className="mt-4">
+        Analyzing image...
+      </p>
+    )}
+
+    {email && (
+      <p className="mt-4 text-green-400">
+        📧 Application Email: {email}
+      </p>
+    )}
+
+    {date && (
+      <p className="mt-2 text-yellow-400">
+        📅 Closing Date: {date}
+      </p>
+    )}
+
+    {summary && (
+      <div className="mt-6 p-4 bg-blue-100 text-black rounded">
+        <h2 className="text-xl font-semibold mb-2">
+          Job Summary
+        </h2>
+
+        <pre className="whitespace-pre-wrap">
+          {summary}
+        </pre>
+      </div>
+    )}
+
+    {requirements.length > 0 && (
+      <div className="mt-6">
+        <h2 className="text-xl font-semibold mb-2">
+          Key Requirements
+        </h2>
+
+        <ul className="list-disc pl-6">
+          {requirements.map((req, index) => (
+            <li key={index}>{req}</li>
+          ))}
+        </ul>
+      </div>
+    )}
+
+    {text && (
+      <div className="mt-6">
+        <h2 className="text-xl font-semibold mb-2">
+          Extracted Text
+        </h2>
+
+        <pre className="bg-gray-100 p-4 rounded text-black whitespace-pre-wrap">
+          {text}
+        </pre>
+      </div>
+    )}
+  </main>
+);
